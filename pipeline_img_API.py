@@ -2,6 +2,11 @@ from ultralytics import YOLO
 from PIL import Image
 import numpy as np
 
+import cv2
+from fastapi import FastAPI,  UploadFile
+import uvicorn  
+app = FastAPI()
+
 iou_threshold = 0.5
 
 def Frame_Validation(input, valid_model):                 
@@ -69,13 +74,14 @@ def predict_image(image_path, frame_model_path, prediction_model_path, Valid_mod
     frame_model = YOLO(frame_model_path)
     prediction_model = YOLO(prediction_model_path)
     Valid_model = YOLO(Valid_model)
-
+    
     predicted_label = ""
 
     # Detect frames
     frame_results = frame_model(image_path)
-    image = Image.open(image_path)
-
+    image = Image.fromarray(image_path)
+    #show full image
+    image.show()
     # Process each detected frame
     for frame_result in frame_results:
         detected_number = ""
@@ -86,7 +92,6 @@ def predict_image(image_path, frame_model_path, prediction_model_path, Valid_mod
             # Crop the image using the bounding box coordinates
             cropped_image = image.crop((x1, y1, x2, y2))
             cropped_image_array = np.array(cropped_image)
-            cropped_image.show()
 
             #check if the frame acceptable or not
             valid =Frame_Validation(cropped_image_array, Valid_model)
@@ -109,17 +114,40 @@ def predict_image(image_path, frame_model_path, prediction_model_path, Valid_mod
                         number = int(name)
                         corrected_num = corrected_number(number)
                         detected_number += str(corrected_num)
-
-                    result.show()
+        
                     predicted_label += detected_number
-            print(f"Processed {image_path}: {predicted_label}") 
-            print(f"Frame Validation: {valid}")        
-    return predicted_label
+      
+    return predicted_label, valid
 
-input= "D:/HUST/dev/py/Digit_catkhung/data/final/images/28886691_1.png"
+
 
 frame_model_path = "D:/HUST/dev/py/Digit_catkhung/model/khung/khung_best_1306.pt"
 prediction_model_path = "D:/HUST/dev/py/Digit_catkhung/model/so/best_01_so.pt"
 Valid_model = "D:/HUST/dev/py/Digit_catkhung/model/khung hop le/best_2107.pt"
-predicted_labels = predict_image(input, frame_model_path, prediction_model_path,Valid_model)
-print(predicted_labels)
+
+
+@app.post("/predict/")
+async def predict_category(file:UploadFile):
+    try:
+        
+        contents = await file.read()
+    
+        # Convert to numpy array
+        nparr = np.frombuffer(contents, np.uint8)
+    
+        # Decode the image
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    
+        predictions, valid = predict_image(img,frame_model_path, prediction_model_path, Valid_model)                        
+    
+        return {"predicted": predictions , 
+                "\nframe: ": valid}   
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+if __name__ == '__main__':
+    uvicorn.run(app, host="0.0.0.0",
+                port=8001, log_level="debug")
+    
