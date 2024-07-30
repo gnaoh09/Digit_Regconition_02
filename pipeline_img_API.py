@@ -142,7 +142,7 @@ async def predict_category(file:UploadFile):
         predictions, valid = predict_image(img,frame_model_path, prediction_model_path, Valid_model)                        
     
         return {"predicted": predictions , 
-                "\nframe: ": valid}   
+                "frame: ": valid}   
     
     except Exception as e:
         return {"error": str(e)}
